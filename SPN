@@ -1,0 +1,53 @@
+# S-box и обратный
+S = [0xE, 0x4, 0xD, 0x1, 0x2, 0xF, 0xB, 0x8,
+     0x3, 0xA, 0x6, 0xC, 0x5, 0x9, 0x0, 0x7]
+S_INV = [0]*16
+for i,v in enumerate(S):
+    S_INV[v] = i
+
+# простая перестановка и обратная
+P = [0,4,8,12,1,5,9,13,2,6,10,14,3,7,11,15]
+P_INV = [0]*16
+for i,v in enumerate(P):
+    P_INV[v] = i
+
+def sbox_layer(x, sbox):
+    y = 0
+    for i in range(4):
+        nib = (x >> (i*4)) & 0xF
+        y |= (sbox[nib] << (i*4))
+    return y
+
+def perm(x, table):
+    y = 0
+    for i in range(16):
+        bit = (x >> i) & 1
+        y |= (bit << table[i])
+    return y
+
+def spn_encrypt(pt, keys, rounds=4):
+    x = pt
+    for r in range(rounds):
+        x ^= keys[r]
+        x = sbox_layer(x, S)
+        x = perm(x, P)
+    x ^= keys[rounds]
+    return x
+
+def spn_decrypt(ct, keys, rounds=4):
+    x = ct ^ keys[rounds]
+    for r in range(rounds-1, -1, -1):
+        x = perm(x, P_INV)
+        x = sbox_layer(x, S_INV)
+        x ^= keys[r]
+    return x
+
+# пример
+keys = [0x3A94, 0xC1F2, 0x7B3D, 0x5E6A, 0x1234]
+pt = 0xBEEF
+ct = spn_encrypt(pt, keys)
+dt = spn_decrypt(ct, keys)
+
+print("PT:", hex(pt))
+print("CT:", hex(ct))
+print("DT:", hex(dt), "OK?", pt == dt)
