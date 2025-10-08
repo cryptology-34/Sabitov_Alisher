@@ -1,0 +1,69 @@
+from typing import Union
+
+def to_bytes(s: Union[str, bytes]) -> bytes:
+    return s.encode('utf-8') if isinstance(s, str) else s
+def sum_hash(data: Union[str, bytes], mod: int = 2**32) -> int:
+    b = to_bytes(data)
+    total = 0
+    for x in b:
+        total += x
+    return total % mod
+def poly_hash(data: Union[str, bytes], base: int = 257, mod: int = 2**64) -> int:
+    b = to_bytes(data)
+    h = 0
+    for x in b:
+        h = (h * base + x) % mod
+    return h
+def djb2(data: Union[str, bytes]) -> int:
+    b = to_bytes(data)
+    h = 5381
+    for x in b:
+        # h * 33 + x
+        h = ((h << 5) + h) + x
+        h &= 0xFFFFFFFFFFFFFFFF  # оставить 64-бит (чтобы не расти вечно)
+    return h
+def fnv1a_32(data: Union[str, bytes]) -> int:
+    b = to_bytes(data)
+    h = 0x811c9dc5  # FNV offset basis 32-bit
+    fnv_prime = 0x01000193
+    for x in b:
+        h ^= x
+        h = (h * fnv_prime) & 0xFFFFFFFF
+    return h
+def to_hex(val: int, bits: int = 64) -> str:
+    width = bits // 4
+    return f"0x{val & ((1 << bits) - 1):0{width}x}"
+
+if __name__ == "__main__":
+    samples = [
+        "hello",
+        "Hello",
+        "hello!",
+        "hello world",
+        "helloo",
+        "h e l l o",
+        "",
+        "a",
+        "ab",
+        "abc",
+    ]
+
+    funcs = [
+        ("sum", sum_hash, 32),
+        ("poly", poly_hash, 64),
+        ("djb2", djb2, 64),
+        ("fnv1a32", fnv1a_32, 32),
+    ]
+
+    print("Простые хеши (строка -> hex):\n")
+    for s in samples:
+        print(f"'{s}':")
+        for name, fn, bits in funcs:
+            h = fn(s)
+            print(f"  {name:7}: {to_hex(h, bits)} ({h})")
+        print()
+
+    print("Проверка коллизий (fnv1a32) на похожих строках 'a', 'aa', 'aaa', ...:")
+    for n in range(1, 11):
+        s = "a" * n
+        print(f"  len={n:2} '{s[:6]}...': {to_hex(fnv1a_32(s), 32)}")
