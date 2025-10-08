@@ -1,0 +1,29 @@
+import hashlib
+
+def keystream(key, nonce, length):
+    out = b""
+    c = 0
+    while len(out) < length:
+        h = hashlib.sha256(key + nonce + c.to_bytes(4, 'big')).digest()
+        out += h
+        c += 1
+    return out[:length]
+
+def encrypt(data, key, nonce):
+    ks = keystream(key, nonce, len(data))
+    return bytes(a ^ b for a, b in zip(data, ks))
+
+def decrypt(data, key, nonce):
+    return encrypt(data, key, nonce)
+
+# пример
+key = b"my_secret_key"
+nonce = b"1234"
+pt = b"Hello world"
+
+ct = encrypt(pt, key, nonce)
+dt = decrypt(ct, key, nonce)
+
+print("PT:", pt)
+print("CT:", ct.hex())
+print("DT:", dt, "OK?", pt == dt)
