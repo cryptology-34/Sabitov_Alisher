@@ -1,0 +1,44 @@
+import hashlib
+
+def F(r, k, nbits):
+    data = str(r).encode() + k
+    h = hashlib.sha256(data).digest()
+    val = int.from_bytes(h, 'big')
+    return val & ((1 << nbits) - 1)
+
+def feistel_encrypt(block, bits, keys):
+    half = bits // 2
+    mask = (1 << half) - 1
+    L = block >> half
+    R = block & mask
+
+    for k in keys:
+        L, R = R, L ^ F(R, k, half)
+
+    return (L << half) | R
+
+def feistel_decrypt(block, bits, keys):
+    # Правильное дешифрование: инвертируем раунды вручную
+    half = bits // 2
+    mask = (1 << half) - 1
+    L = block >> half   # это L_n
+    R = block & mask    # это R_n
+
+    for k in reversed(keys):
+        prev_R = L
+        prev_L = R ^ F(prev_R, k, half)
+        L, R = prev_L, prev_R
+
+    return (L << half) | R
+
+# пример
+block_bits = 32
+plain = 0xDEADBEEF & ((1 << block_bits) - 1)
+keys = [b"r1", b"r2", b"r3", b"r4"]
+
+cipher = feistel_encrypt(plain, block_bits, keys)
+decr = feistel_decrypt(cipher, block_bits, keys)
+
+print("Plain :", hex(plain))
+print("Cipher:", hex(cipher))
+print("Decr  :", hex(decr), "OK?", decr == plain)
