@@ -1,0 +1,92 @@
+import random
+
+def gcd(a, b):
+    while b:
+        a, b = b, a % b
+    return a
+
+def mod_inverse(e, phi):
+    def extended_gcd(a, b):
+        if a == 0:
+            return b, 0, 1
+        gcd, x1, y1 = extended_gcd(b % a, a)
+        x = y1 - (b // a) * x1
+        y = x1
+        return gcd, x, y
+    
+    _, x, _ = extended_gcd(e, phi)
+    return x % phi
+
+def is_prime(n, tests=128):
+    if n == 2 or n == 3:
+        return True
+    if n <= 1 or n % 2 == 0:
+        return False
+    
+    r, s = 0, n - 1
+    while s % 2 == 0:
+        r += 1
+        s //= 2
+    
+    for _ in range(tests):
+        a = random.randrange(2, n - 1)
+        x = pow(a, s, n)
+        if x == 1 or x == n - 1:
+            continue
+        for _ in range(r - 1):
+            x = pow(x, 2, n)
+            if x == n - 1:
+                break
+        else:
+            return False
+    return True
+
+def generate_keypair(bits=512):
+    p = q = None
+    while not (p and is_prime(p)):
+        p = random.getrandbits(bits) | 1
+    while not (q and is_prime(q) and q != p):
+        q = random.getrandbits(bits) | 1
+    
+    n = p * q
+    phi = (p - 1) * (q - 1)
+    
+    e = 65537
+    while gcd(e, phi) != 1:
+        e = random.randrange(2, phi)
+    
+    d = mod_inverse(e, phi)
+    return (e, n), (d, n)
+
+def sign(message, private_key):
+    d, n = private_key
+    signature = pow(message, d, n)
+    return signature
+
+def verify(message, signature, public_key):
+    e, n = public_key
+    decrypted = pow(signature, e, n)
+    return message == decrypted
+
+if __name__ == "__main__":
+    # Генерация ключей
+    public_key, private_key = generate_keypair(512)
+    print("Открытый ключ (e, n):", public_key)
+    print("Закрытый ключ (d, n):", private_key)
+
+    # Сообщение для подписи (должно быть числом меньше n)
+    message = 123456789
+    print(f"\nИсходное сообщение: {message}")
+
+    # Создание подписи
+    signature = sign(message, private_key)
+    print(f"Подпись: {signature}")
+
+    # Проверка подписи
+    valid = verify(message, signature, public_key)
+    print(f"Подпись верна: {valid}")
+
+    # Проверка с измененным сообщением
+    fake_message = 987654321
+    fake_valid = verify(fake_message, signature, public_key)
+    print(f"Проверка с ложным сообщением: {fake_valid}")
