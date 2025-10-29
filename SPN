@@ -106,3 +106,21 @@ if __name__ == "__main__":
     decrypted3 = decrypt_with_padding(encrypted3, keys)
     print(f"Расшифрованные байты: {decrypted3.hex()}")
     print(f"Данные корректны: {test_bytes == decrypted3}")
+    print("\n=== Сохранение и загрузка зашифрованного сообщения ===")
+    filename = "encrypted_message.bin"
+
+    # Записываем в файл и вытаскиваем из файла (Обновлено 29.10.2025)
+    with open(filename, "wb") as f:
+        # Каждое число (16 бит) записываем как 2 байта
+        for block in encrypted1:
+            f.write(block.to_bytes(2, 'big'))
+    print(f"Зашифрованное сообщение записано в файл: {filename}")
+    loaded_blocks = []
+    with open(filename, "rb") as f:
+        data = f.read()
+        for i in range(0, len(data), 2):
+            block = int.from_bytes(data[i:i+2], 'big')
+            loaded_blocks.append(block)
+    print(f"Загружено {len(loaded_blocks)} блоков из файла.")
+    decrypted_loaded = decrypt_with_padding(loaded_blocks, keys)
+    print(f"Расшифрованное сообщение из файла: '{decrypted_loaded.decode('utf-8')}'")
