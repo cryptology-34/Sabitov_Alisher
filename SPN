@@ -1,30 +1,25 @@
-# S-box и обратный
+import random
 S = [0xE, 0x4, 0xD, 0x1, 0x2, 0xF, 0xB, 0x8,
      0x3, 0xA, 0x6, 0xC, 0x5, 0x9, 0x0, 0x7]
 S_INV = [0]*16
 for i,v in enumerate(S):
     S_INV[v] = i
-
-# простая перестановка и обратная
 P = [0,4,8,12,1,5,9,13,2,6,10,14,3,7,11,15]
 P_INV = [0]*16
 for i,v in enumerate(P):
     P_INV[v] = i
-
 def sbox_layer(x, sbox):
     y = 0
     for i in range(4):
         nib = (x >> (i*4)) & 0xF
         y |= (sbox[nib] << (i*4))
     return y
-
 def perm(x, table):
     y = 0
     for i in range(16):
         bit = (x >> i) & 1
         y |= (bit << table[i])
     return y
-
 def spn_encrypt(pt, keys, rounds=4):
     x = pt
     for r in range(rounds):
@@ -33,7 +28,6 @@ def spn_encrypt(pt, keys, rounds=4):
         x = perm(x, P)
     x ^= keys[rounds]
     return x
-
 def spn_decrypt(ct, keys, rounds=4):
     x = ct ^ keys[rounds]
     for r in range(rounds-1, -1, -1):
@@ -41,13 +35,74 @@ def spn_decrypt(ct, keys, rounds=4):
         x = sbox_layer(x, S_INV)
         x ^= keys[r]
     return x
+def add_padding(data, block_size=16):
+    """Добавляет падинг PKCS#7 к данным"""
+    padding_len = block_size - (len(data) % block_size)
+    if padding_len == 0:
+        padding_len = block_size
+    padding = bytes([padding_len] * padding_len)
+    return data + padding
+def remove_padding(data):
+    if len(data) == 0:
+        return data
+    padding_len = data[-1]
+    # Проверяем корректность падинга
+    if padding_len > len(data):
+        raise ValueError("Invalid padding")
+    for i in range(1, padding_len + 1):
+        if data[-i] != padding_len:
+            raise ValueError("Invalid padding")
+    return data[:-padding_len]
+def encrypt_with_padding(plaintext, keys):
+    if isinstance(plaintext, str):
+        plaintext = plaintext.encode('utf-8')
+    padded_data = add_padding(plaintext)
+    encrypted_blocks = []
+    for i in range(0, len(padded_data), 2):  # 2 байта = 16 бит
+        if i + 1 < len(padded_data):
+            block = (padded_data[i] << 8) | padded_data[i + 1]
+        else:
+            block = padded_data[i] << 8
+        encrypted_block = spn_encrypt(block, keys)
+        encrypted_blocks.append(encrypted_block)
+    return encrypted_blocks
+def decrypt_with_padding(encrypted_blocks, keys):
+    decrypted_bytes = bytearray()
+    for block in encrypted_blocks:
+        decrypted_block = spn_decrypt(block, keys)
+        # Разбиваем 16-битное число на 2 байта
+        decrypted_bytes.append((decrypted_block >> 8) & 0xFF)
+        decrypted_bytes.append(decrypted_block & 0xFF)
+    return remove_padding(bytes(decrypted_bytes))
 
-# пример
-keys = [0x3A94, 0xC1F2, 0x7B3D, 0x5E6A, 0x1234]
-pt = 0xBEEF
-ct = spn_encrypt(pt, keys)
-dt = spn_decrypt(ct, keys)
-
-print("PT:", hex(pt))
-print("CT:", hex(ct))
-print("DT:", hex(dt), "OK?", pt == dt)
+if __name__ == "__main__":
+    keys = [0x3A94, 0xC1F2, 0x7B3D, 0x5E6A, 0x1234]
+    print("=== Без падинга (оригинальный пример) ===")
+    pt = 0xBEEF
+    ct = spn_encrypt(pt, keys)
+    dt = spn_decrypt(ct, keys)
+    print("PT:", hex(pt))
+    print("CT:", hex(ct))
+    print("DT:", hex(dt), "OK?", pt == dt)
+    print("\n=== С падингом (текстовые данные) ===")
+    test_message1 = "Hello SPN!"
+    print(f"Исходное сообщение 1: '{test_message1}'")
+    encrypted1 = encrypt_with_padding(test_message1, keys)
+    decrypted1 = decrypt_with_padding(encrypted1, keys)
+    print(f"Зашифрованные блоки: {[hex(x) for x in encrypted1]}")
+    print(f"Расшифрованное сообщение 1: '{decrypted1.decode('utf-8')}'")
+    print(f"Сообщение корректно: {test_message1 == decrypted1.decode('utf-8')}")
+    test_message2 = "This is a longer test message for SPN with padding!"
+    print(f"\nИсходное сообщение 2: '{test_message2}'")
+    encrypted2 = encrypt_with_padding(test_message2, keys)
+    decrypted2 = decrypt_with_padding(encrypted2, keys)
+    print(f"Количество зашифрованных блоков: {len(encrypted2)}")
+    print(f"Расшифрованное сообщение 2: '{decrypted2.decode('utf-8')}'")
+    print(f"Сообщение корректно: {test_message2 == decrypted2.decode('utf-8')}")
+    print("\n=== С падингом (байтовые данные) ===")
+    test_bytes = b'\x01\x02\x03\x04\x05'
+    print(f"Исходные байты: {test_bytes.hex()}")
+    encrypted3 = encrypt_with_padding(test_bytes, keys)
+    decrypted3 = decrypt_with_padding(encrypted3, keys)
+    print(f"Расшифрованные байты: {decrypted3.hex()}")
+    print(f"Данные корректны: {test_bytes == decrypted3}")
