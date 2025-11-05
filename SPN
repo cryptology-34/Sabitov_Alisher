@@ -1,126 +1,149 @@
 import random
-S = [0xE, 0x4, 0xD, 0x1, 0x2, 0xF, 0xB, 0x8,
-     0x3, 0xA, 0x6, 0xC, 0x5, 0x9, 0x0, 0x7]
-S_INV = [0]*16
+
+S = [
+    0x63, 0x7C, 0x77, 0x7B, 0xF2, 0x6B, 0x6F, 0xC5, 0x30, 0x01, 0x67, 0x2B, 0xFE, 0xD7, 0xAB, 0x76,
+    0xCA, 0x82, 0xC9, 0x7D, 0xFA, 0x59, 0x47, 0xF0, 0xAD, 0xD4, 0xA2, 0xAF, 0x9C, 0xA4, 0x72, 0xC0,
+    0xB7, 0xFD, 0x93, 0x26, 0x36, 0x3F, 0xF7, 0xCC, 0x34, 0xA5, 0xE5, 0xF1, 0x71, 0xD8, 0x31, 0x15,
+    0x04, 0xC7, 0x23, 0xC3, 0x18, 0x96, 0x05, 0x9A, 0x07, 0x12, 0x80, 0xE2, 0xEB, 0x27, 0xB2, 0x75,
+    0x09, 0x83, 0x2C, 0x1A, 0x1B, 0x6E, 0x5A, 0xA0, 0x52, 0x3B, 0xD6, 0xB3, 0x29, 0xE3, 0x2F, 0x84,
+    0x53, 0xD1, 0x00, 0xED, 0x20, 0xFC, 0xB1, 0x5B, 0x6A, 0xCB, 0xBE, 0x39, 0x4A, 0x4C, 0x58, 0xCF,
+    0xD0, 0xEF, 0xAA, 0xFB, 0x43, 0x4D, 0x33, 0x85, 0x45, 0xF9, 0x02, 0x7F, 0x50, 0x3C, 0x9F, 0xA8,
+    0x51, 0xA3, 0x40, 0x8F, 0x92, 0x9D, 0x38, 0xF5, 0xBC, 0xB6, 0xDA, 0x21, 0x10, 0xFF, 0xF3, 0xD2,
+    0xCD, 0x0C, 0x13, 0xEC, 0x5F, 0x97, 0x44, 0x17, 0xC4, 0xA7, 0x7E, 0x3D, 0x64, 0x5D, 0x19, 0x73,
+    0x60, 0x81, 0x4F, 0xDC, 0x22, 0x2A, 0x90, 0x88, 0x46, 0xEE, 0xB8, 0x14, 0xDE, 0x5E, 0x0B, 0xDB,
+    0xE0, 0x32, 0x3A, 0x0A, 0x49, 0x06, 0x24, 0x5C, 0xC2, 0xD3, 0xAC, 0x62, 0x91, 0x95, 0xE4, 0x79,
+    0xE7, 0xC8, 0x37, 0x6D, 0x8D, 0xD5, 0x4E, 0xA9, 0x6C, 0x56, 0xF4, 0xEA, 0x65, 0x7A, 0xAE, 0x08,
+    0xBA, 0x78, 0x25, 0x2E, 0x1C, 0xA6, 0xB4, 0xC6, 0xE8, 0xDD, 0x74, 0x1F, 0x4B, 0xBD, 0x8B, 0x8A,
+    0x70, 0x3E, 0xB5, 0x66, 0x48, 0x03, 0xF6, 0x0E, 0x61, 0x35, 0x57, 0xB9, 0x86, 0xC1, 0x1D, 0x9E,
+    0xE1, 0xF8, 0x98, 0x11, 0x69, 0xD9, 0x8E, 0x94, 0x9B, 0x1E, 0x87, 0xE9, 0xCE, 0x55, 0x28, 0xDF,
+    0x8C, 0xA1, 0x89, 0x0D, 0xBF, 0xE6, 0x42, 0x68, 0x41, 0x99, 0x2D, 0x0F, 0xB0, 0x54, 0xBB, 0x16
+]
+
+S_INV = [0]*256
 for i,v in enumerate(S):
     S_INV[v] = i
-P = [0,4,8,12,1,5,9,13,2,6,10,14,3,7,11,15]
-P_INV = [0]*16
+
+# 128-битная перестановка (перемешивание 128 бит)
+P = list(range(128))
+random.shuffle(P)
+P_INV = [0]*128
 for i,v in enumerate(P):
     P_INV[v] = i
-def sbox_layer(x, sbox):
-    y = 0
-    for i in range(4):
-        nib = (x >> (i*4)) & 0xF
-        y |= (sbox[nib] << (i*4))
-    return y
-def perm(x, table):
+
+def sbox_layer_128(x, sbox):
     y = 0
     for i in range(16):
+        byte_val = (x >> (i*8)) & 0xFF
+        y |= (sbox[byte_val] << (i*8))
+    return y
+
+def perm_128(x, table):
+    y = 0
+    for i in range(128):
         bit = (x >> i) & 1
         y |= (bit << table[i])
     return y
-def spn_encrypt(pt, keys, rounds=4):
+
+def spn_encrypt_128(pt, keys, rounds=4):
     x = pt
     for r in range(rounds):
         x ^= keys[r]
-        x = sbox_layer(x, S)
-        x = perm(x, P)
+        x = sbox_layer_128(x, S)
+        x = perm_128(x, P)
     x ^= keys[rounds]
     return x
-def spn_decrypt(ct, keys, rounds=4):
+
+def spn_decrypt_128(ct, keys, rounds=4):
     x = ct ^ keys[rounds]
     for r in range(rounds-1, -1, -1):
-        x = perm(x, P_INV)
-        x = sbox_layer(x, S_INV)
+        x = perm_128(x, P_INV)
+        x = sbox_layer_128(x, S_INV)
         x ^= keys[r]
     return x
-def add_padding(data, block_size=16):
-    """Добавляет падинг PKCS#7 к данным"""
+
+def add_padding_128(data):
+    block_size = 16
     padding_len = block_size - (len(data) % block_size)
     if padding_len == 0:
         padding_len = block_size
     padding = bytes([padding_len] * padding_len)
     return data + padding
-def remove_padding(data):
+
+def remove_padding_128(data):
     if len(data) == 0:
         return data
     padding_len = data[-1]
-    # Проверяем корректность падинга
-    if padding_len > len(data):
+    if padding_len > len(data) or padding_len == 0:
         raise ValueError("Invalid padding")
     for i in range(1, padding_len + 1):
         if data[-i] != padding_len:
             raise ValueError("Invalid padding")
     return data[:-padding_len]
-def encrypt_with_padding(plaintext, keys):
+
+def encrypt_with_padding_128(plaintext, keys):
     if isinstance(plaintext, str):
         plaintext = plaintext.encode('utf-8')
-    padded_data = add_padding(plaintext)
+    padded_data = add_padding_128(plaintext)
     encrypted_blocks = []
-    for i in range(0, len(padded_data), 2):  # 2 байта = 16 бит
-        if i + 1 < len(padded_data):
-            block = (padded_data[i] << 8) | padded_data[i + 1]
-        else:
-            block = padded_data[i] << 8
-        encrypted_block = spn_encrypt(block, keys)
+    for i in range(0, len(padded_data), 16):
+        block = int.from_bytes(padded_data[i:i+16], 'big')
+        encrypted_block = spn_encrypt_128(block, keys)
         encrypted_blocks.append(encrypted_block)
     return encrypted_blocks
-def decrypt_with_padding(encrypted_blocks, keys):
+
+def decrypt_with_padding_128(encrypted_blocks, keys):
     decrypted_bytes = bytearray()
     for block in encrypted_blocks:
-        decrypted_block = spn_decrypt(block, keys)
-        # Разбиваем 16-битное число на 2 байта
-        decrypted_bytes.append((decrypted_block >> 8) & 0xFF)
-        decrypted_bytes.append(decrypted_block & 0xFF)
-    return remove_padding(bytes(decrypted_bytes))
+        decrypted_block = spn_decrypt_128(block, keys)
+        # Конвертируем 128-битный блок в 16 байт
+        decrypted_bytes.extend(decrypted_block.to_bytes(16, 'big'))
+    return remove_padding_128(bytes(decrypted_bytes))
+
+def generate_128bit_keys(num_keys=5):
+    """Генерирует 128-битные ключи"""
+    return [random.getrandbits(128) for _ in range(num_keys)]
 
 if __name__ == "__main__":
-    keys = [0x3A94, 0xC1F2, 0x7B3D, 0x5E6A, 0x1234]
-    print("=== Без падинга (оригинальный пример) ===")
-    pt = 0xBEEF
-    ct = spn_encrypt(pt, keys)
-    dt = spn_decrypt(ct, keys)
+    keys = generate_128bit_keys()
+    print("=== 128-битный SPN (без падинга) ===")
+    pt = 0x48656C6C6F20576F726C642121  # "Hello World!!" в hex
+    ct = spn_encrypt_128(pt, keys)
+    dt = spn_decrypt_128(ct, keys)
     print("PT:", hex(pt))
     print("CT:", hex(ct))
     print("DT:", hex(dt), "OK?", pt == dt)
-    print("\n=== С падингом (текстовые данные) ===")
-    test_message1 = "Hello SPN!"
-    print(f"Исходное сообщение 1: '{test_message1}'")
-    encrypted1 = encrypt_with_padding(test_message1, keys)
-    decrypted1 = decrypt_with_padding(encrypted1, keys)
-    print(f"Зашифрованные блоки: {[hex(x) for x in encrypted1]}")
-    print(f"Расшифрованное сообщение 1: '{decrypted1.decode('utf-8')}'")
-    print(f"Сообщение корректно: {test_message1 == decrypted1.decode('utf-8')}")
-    test_message2 = "This is a longer test message for SPN with padding!"
-    print(f"\nИсходное сообщение 2: '{test_message2}'")
-    encrypted2 = encrypt_with_padding(test_message2, keys)
-    decrypted2 = decrypt_with_padding(encrypted2, keys)
-    print(f"Количество зашифрованных блоков: {len(encrypted2)}")
-    print(f"Расшифрованное сообщение 2: '{decrypted2.decode('utf-8')}'")
-    print(f"Сообщение корректно: {test_message2 == decrypted2.decode('utf-8')}")
-    print("\n=== С падингом (байтовые данные) ===")
-    test_bytes = b'\x01\x02\x03\x04\x05'
-    print(f"Исходные байты: {test_bytes.hex()}")
-    encrypted3 = encrypt_with_padding(test_bytes, keys)
-    decrypted3 = decrypt_with_padding(encrypted3, keys)
-    print(f"Расшифрованные байты: {decrypted3.hex()}")
-    print(f"Данные корректны: {test_bytes == decrypted3}")
-    print("\n=== Сохранение и загрузка зашифрованного сообщения ===")
-    filename = "encrypted_message.bin"
-
-    # Записываем в файл и вытаскиваем из файла (Обновлено 29.10.2025)
+    print("\n=== 128-битный SPN с падингом ===")
+    test_message = "Hello 128-bit SPN World!"
+    print(f"Исходное сообщение: '{test_message}'")
+    encrypted = encrypt_with_padding_128(test_message, keys)
+    decrypted = decrypt_with_padding_128(encrypted, keys)
+    print(f"Зашифрованные блоки: {[hex(x) for x in encrypted]}")
+    print(f"Расшифрованное сообщение: '{decrypted.decode('utf-8')}'")
+    print(f"Сообщение корректно: {test_message == decrypted.decode('utf-8')}")
+    print("\n=== Тест с длинным сообщением ===")
+    long_message = "This is a very long message that will be split into multiple 128-bit blocks for encryption using our enhanced SPN cipher with 128-bit keys and 8-bit S-boxes."
+    print(f"Длина сообщения: {len(long_message)} символов")
+    encrypted_long = encrypt_with_padding_128(long_message, keys)
+    decrypted_long = decrypt_with_padding_128(encrypted_long, keys)
+    print(f"Количество блоков: {len(encrypted_long)}")
+    print(f"Расшифровано корректно: {long_message == decrypted_long.decode('utf-8')}")
+    print("\n=== Сохранение и загрузка ===")
+    filename = "encrypted_128bit.bin"
     with open(filename, "wb") as f:
-        # Каждое число (16 бит) записываем как 2 байта
-        for block in encrypted1:
-            f.write(block.to_bytes(2, 'big'))
-    print(f"Зашифрованное сообщение записано в файл: {filename}")
+        for block in encrypted:
+            f.write(block.to_bytes(16, 'big'))
     loaded_blocks = []
     with open(filename, "rb") as f:
-        data = f.read()
-        for i in range(0, len(data), 2):
-            block = int.from_bytes(data[i:i+2], 'big')
-            loaded_blocks.append(block)
-    print(f"Загружено {len(loaded_blocks)} блоков из файла.")
-    decrypted_loaded = decrypt_with_padding(loaded_blocks, keys)
-    print(f"Расшифрованное сообщение из файла: '{decrypted_loaded.decode('utf-8')}'")
+        while True:
+            chunk = f.read(16)
+            if not chunk:
+                break
+            loaded_blocks.append(int.from_bytes(chunk, 'big'))
+    decrypted_loaded = decrypt_with_padding_128(loaded_blocks, keys)
+    print(f"Загружено блоков: {len(loaded_blocks)}")
+    print(f"Расшифрованное сообщение: '{decrypted_loaded.decode('utf-8')}'")
+    print("\n=== Информация о системе ===")
+    print("Размер блока: 128 бит")
+    print("Размер ключа: 128 бит (×5 раундов)")
+    print("Размер S-box: 256 элементов (8-битный)")
+    print("Количество раундов: 4")
