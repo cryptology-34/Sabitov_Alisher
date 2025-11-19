@@ -1,4 +1,6 @@
 import os
+import secrets
+
 def F(r, k, nbits):
     data = (r * int.from_bytes(k, 'big')) ^ (r << 3) ^ (r >> 5)
     data = data & ((1 << nbits) - 1)
@@ -24,10 +26,12 @@ def feistel_decrypt(block, bits, keys):
         L, R = prev_L, prev_R
     return (L << half) | R
 
-def add_padding(data, block_size_bytes=4):
+def add_padding(data, block_size_bytes=16):  # Увеличили размер блока для 128-битных ключей
     padding_len = block_size_bytes - (len(data) % block_size_bytes)
     if padding_len == 0:
         padding_len = block_size_bytes
+    
+    # PKCS7 падинг
     padding = bytes([padding_len] * padding_len)
     return data + padding
 
@@ -35,18 +39,24 @@ def remove_padding(data):
     if len(data) == 0:
         return data
     padding_len = data[-1]
-    if padding_len > len(data):
+    if padding_len > len(data) or padding_len == 0:
         raise ValueError("Invalid padding")
     for i in range(1, padding_len + 1):
         if data[-i] != padding_len:
             raise ValueError("Invalid padding")
     return data[:-padding_len]
 
-def encrypt_data(data, keys, block_bits=32):
+def generate_128bit_key():
+    """Генерация случайного 128-битного ключа"""
+    return secrets.token_bytes(16)
+
+def encrypt_data(data, keys, block_bits=64):  # Увеличили размер блока
     if isinstance(data, str):
         data = data.encode('utf-8')
-    padded_data = add_padding(data)
+    
+    padded_data = add_padding(data, block_bits // 8)
     encrypted_blocks = []
+    
     for i in range(0, len(padded_data), block_bits // 8):
         block_bytes = padded_data[i:i + block_bits // 8]
         if len(block_bytes) < block_bits // 8:
@@ -54,25 +64,26 @@ def encrypt_data(data, keys, block_bits=32):
         block = int.from_bytes(block_bytes, 'big')
         encrypted_block = feistel_encrypt(block, block_bits, keys)
         encrypted_blocks.append(encrypted_block)
+    
     return encrypted_blocks
 
-def decrypt_data(encrypted_blocks, keys, block_bits=32):
+def decrypt_data(encrypted_blocks, keys, block_bits=64):
     decrypted_bytes = bytearray()
     for block in encrypted_blocks:
         decrypted_block = feistel_decrypt(block, block_bits, keys)
         decrypted_bytes.extend(decrypted_block.to_bytes(block_bits // 8, 'big'))
     return remove_padding(bytes(decrypted_bytes))
 
-def write_encrypted_to_file(encrypted_blocks, filename):
+def write_encrypted_to_file(encrypted_blocks, filename, block_bits=64):
     with open(filename, 'wb') as f:
         for block in encrypted_blocks:
-            f.write(block.to_bytes(4, 'big'))
+            f.write(block.to_bytes(block_bits // 8, 'big'))
 
-def read_encrypted_from_file(filename):
+def read_encrypted_from_file(filename, block_bits=64):
     encrypted_blocks = []
     with open(filename, 'rb') as f:
         while True:
-            chunk = f.read(4)
+            chunk = f.read(block_bits // 8)
             if not chunk:
                 break
             block = int.from_bytes(chunk, 'big')
@@ -80,35 +91,62 @@ def read_encrypted_from_file(filename):
     return encrypted_blocks
 
 if __name__ == "__main__":
-    block_bits = 32
-    keys = [b"r1", b"r2", b"r3", b"r4"]
-    print("=== Тест без падинга ===")
-    plain = 0xDEADBEEF & ((1 << block_bits) - 1)
+    # Генерация 128-битных ключей
+    keys = [generate_128bit_key() for _ in range(4)]
+    block_bits = 64  # Увеличили размер блока для работы с 128-битными ключами
+    
+    print("=== Тест с 128-битными ключами ===")
+    print("Ключи (hex):")
+    for i, key in enumerate(keys):
+        print(f"  Key {i+1}: {key.hex()}")
+    
+    print("\n=== Тест без падинга ===")
+    plain = 0xDEADBEEFCAFEBABE & ((1 << block_bits) - 1)
     cipher = feistel_encrypt(plain, block_bits, keys)
     decr = feistel_decrypt(cipher, block_bits, keys)
     print("Plain :", hex(plain))
     print("Cipher:", hex(cipher))
     print("Decr  :", hex(decr), "OK?", decr == plain)
+    
     print("\n=== Тест с падингом и файлами ===")
-    test_message = "Hello, this is a secret message for Feistel network!"
+    test_message = "Hello, this is a secret message for Feistel network with 128-bit keys and improved padding!"
     print(f"Исходное сообщение: '{test_message}'")
+    print(f"Длина сообщения: {len(test_message)} байт")
     
-    encrypted_blocks = encrypt_data(test_message, keys)
+    encrypted_blocks = encrypt_data(test_message, keys, block_bits)
     print(f"Зашифровано блоков: {len(encrypted_blocks)}")
+    print(f"Размер блока: {block_bits} бит ({block_bits//8} байт)")
     
-    filename = "encrypted_data.bin"
-    write_encrypted_to_file(encrypted_blocks, filename)
+    filename = "encrypted_data_128bit.bin"
+    write_encrypted_to_file(encrypted_blocks, filename, block_bits)
     print(f"Данные записаны в файл: {filename}")
     
-    encrypted_from_file = read_encrypted_from_file(filename)
+    encrypted_from_file = read_encrypted_from_file(filename, block_bits)
     print(f"Прочитано блоков из файла: {len(encrypted_from_file)}")
     
-    decrypted_data = decrypt_data(encrypted_from_file, keys)
+    decrypted_data = decrypt_data(encrypted_from_file, keys, block_bits)
     decrypted_text = decrypted_data.decode('utf-8')
     print(f"Расшифрованное сообщение: '{decrypted_text}'")
     print(f"Сообщение корректно: {test_message == decrypted_text}")
     
     print(f"\nРазмер файла {filename}: {os.path.getsize(filename)} байт")
+    
+    # Дополнительный тест с разными длинами сообщений
+    print("\n=== Тест падинга с разными длинами сообщений ===")
+    test_messages = [
+        "Short",
+        "Medium message here",
+        "This is a very long message that will definitely require padding to fit into the blocks properly!",
+        "A" * 15,  # Граничный случай
+        "B" * 16,  # Ровно один блок
+        "C" * 17   # Нужен падинг
+    ]
+    
+    for msg in test_messages:
+        encrypted = encrypt_data(msg, keys, block_bits)
+        decrypted = decrypt_data(encrypted, keys, block_bits)
+        success = msg == decrypted.decode('utf-8')
+        print(f"Длина {len(msg):3d} байт -> {len(encrypted):2d} блоков -> OK: {success}")
     
     if os.path.exists(filename):
         os.remove(filename)
